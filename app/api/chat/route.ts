@@ -1,9 +1,9 @@
 import { streamText } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
+import { createDeepSeek } from "@ai-sdk/deepseek";
 
-const deepseek = createOpenAI({
-  baseURL: "https://api.deepseek.com/v1",
-  apiKey: process.env.OPENAI_API_KEY || process.env.DEEPSEEK_API_KEY,
+const deepseek = createDeepSeek({
+  apiKey: process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY,
+  baseURL: process.env.DEEPSEEK_BASE_URL,
 });
 
 export async function POST(req: Request) {
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const modelName = process.env.DEEPSEEK_MODEL || "deepseek-chat";
+  const modelName = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
 
   const result = streamText({
     model: deepseek.chat(modelName),

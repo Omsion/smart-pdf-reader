@@ -2,121 +2,63 @@
 
 import { useState, useRef, useEffect } from "react";
 import { MessageCircle, Send, Loader2 } from "lucide-react";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport, isTextUIPart, type UIMessage } from "ai";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useAppStore } from "@/store/useAppStore";
 
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
+/** 从 UIMessage 的 parts 数组中提取纯文本内容 */
+function getMessageText(msg: UIMessage): string {
+  return msg.parts.filter(isTextUIPart).map((p) => p.text).join("");
 }
 
 export default function ChatPanel() {
   const selectedText = useAppStore((s) => s.selectedText);
   const currentPage = useAppStore((s) => s.currentPage);
 
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const {
+    messages,
+    input,
+    handleInputChange,
+    handleSubmit,
+    status,
+    error,
+  } = useChat({
+    api: "/api/chat",
+    body: {
+      contextMode: "full-document",
+      currentPage,
+    },
+  });
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isLoading = status === "submitted" || status === "streaming";
 
   // 自动滚动到底部
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // 当用户选中文本时，自动填充到输入框
+  // 当用户选中 PDF 文本时，自动填充到输入框（仅在输入框为空时）
   useEffect(() => {
-    if (selectedText) {
-      setInput((prev) => prev ? prev : selectedText);
+    if (selectedText && !input && inputRef.current) {
+      // 通过原生 DOM 操作设置 input value，然后派发 input 事件
+      // 这样 useChat 的 handleInputChange 能正确捕获到
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        "value"
+      )?.set;
+      nativeInputValueSetter?.call(inputRef.current, selectedText);
+      inputRef.current.dispatchEvent(new Event("input", { bubbles: true }));
     }
   }, [selectedText]);
 
-  const handleSend = async () => {
-    const text = input.trim();
-    if (!text || isLoading) return;
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: "user",
-      content: text,
-    };
-
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
-    setInput("");
-    setIsLoading(true);
-
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: updatedMessages.map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-          contextMode: "full-document",
-          currentPage,
-        }),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        throw new Error(errData?.message || `请求失败 (${res.status})`);
-      }
-
-      // 处理流式响应
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("无法读取响应流");
-
-      const decoder = new TextDecoder();
-      const assistantId = (Date.now() + 1).toString();
-      let assistantContent = "";
-
-      // 先添加空的 assistant 消息
-      setMessages((prev) => [
-        ...prev,
-        { id: assistantId, role: "assistant", content: "" },
-      ]);
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        assistantContent += chunk;
-
-        // 更新 assistant 消息内容
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId
-              ? { ...m, content: assistantContent }
-              : m,
-          ),
-        );
-      }
-    } catch (err) {
-      const errorMsg =
-        err instanceof Error ? err.message : "请求失败，请重试";
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 2).toString(),
-          role: "assistant",
-          content: `❌ 错误：${errorMsg}`,
-        },
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading) return;
+    handleSubmit(e);
   };
 
   return (
@@ -142,34 +84,52 @@ export default function ChatPanel() {
               }`}
             >
               <div
-                className={`max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
+                className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
                   msg.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-foreground"
+                    ? "bg-primary text-primary-foreground whitespace-pre-wrap"
+                    : "bg-muted text-foreground prose prose-sm dark:prose-invert max-w-none"
                 }`}
               >
-                {msg.content || (msg.role === "assistant" && isLoading ? "..." : "")}
+                {msg.role === "user" ? (
+                  msg.content
+                ) : msg.content ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {msg.content}
+                  </ReactMarkdown>
+                ) : (
+                  <span className="text-muted-foreground">...</span>
+                )}
               </div>
             </div>
           ))
+        )}
+        {/* 错误提示 */}
+        {error && (
+          <div className="flex justify-start">
+            <div className="max-w-[85%] rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error.message || "请求失败，请重试"}
+            </div>
+          </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
       {/* 底部输入区 */}
-      <div className="flex items-center gap-2 border-t border-border px-3 py-2">
+      <form
+        onSubmit={onSubmit}
+        className="flex items-center gap-2 border-t border-border px-3 py-2"
+      >
         <input
           ref={inputRef}
           type="text"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
+          onChange={handleInputChange}
           placeholder="输入问题..."
           disabled={isLoading}
           className="h-9 flex-1 rounded-md border border-border bg-muted/50 px-3 text-sm outline-none focus:border-primary/50"
         />
         <button
-          onClick={handleSend}
+          type="submit"
           disabled={isLoading || !input.trim()}
           className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground disabled:opacity-50"
         >
@@ -179,7 +139,7 @@ export default function ChatPanel() {
             <Send className="h-4 w-4" />
           )}
         </button>
-      </div>
+      </form>
     </aside>
   );
 }

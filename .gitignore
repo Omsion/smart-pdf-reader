@@ -27,14 +27,13 @@
 # AI coding tools (not part of the project)
 AGENTS.md
 CLAUDE.md
+.claude/
 
 # temp docs
 temp_docs/
 
 # IDE
-.idea/*
-!.idea/inspectionProfiles/
-!.idea/vcs.xml
+.idea/
 
 # debug
 npm-debug.log*

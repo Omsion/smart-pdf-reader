@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(curl -s -w \"\\\\nHTTP_STATUS: %{http_code}\" -X POST http://localhost:3000/api/action -H \"Content-Type: application/json\" -d '{\"text\":\"Hello, how are you?\",\"action\":\"translate\"}')",
-      "Bash(curl -s -w \"\\\\nHTTP_STATUS: %{http_code}\" -X POST http://localhost:3000/api/chat -H \"Content-Type: application/json\" -d '{\"messages\":[{\"role\":\"user\",\"content\":\"你好，请回复一句话\"}],\"contextMode\":\"full-document\",\"currentPage\":1}')",
-      "Bash(taskkill //F //IM \"node.exe\")"
-    ]
-  }
-}

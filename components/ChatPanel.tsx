@@ -19,19 +19,20 @@ export default function ChatPanel() {
 
   const {
     messages,
-    input,
-    handleInputChange,
-    handleSubmit,
+    sendMessage,
     status,
     error,
   } = useChat({
-    api: "/api/chat",
-    body: {
-      contextMode: "full-document",
-      currentPage,
-    },
+    transport: new DefaultChatTransport({
+      api: "/api/chat",
+      body: {
+        contextMode: "full-document",
+        currentPage,
+      },
+    }),
   });
 
+  const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const isLoading = status === "submitted" || status === "streaming";
@@ -43,22 +44,23 @@ export default function ChatPanel() {
 
   // 当用户选中 PDF 文本时，自动填充到输入框（仅在输入框为空时）
   useEffect(() => {
-    if (selectedText && !input && inputRef.current) {
-      // 通过原生 DOM 操作设置 input value，然后派发 input 事件
-      // 这样 useChat 的 handleInputChange 能正确捕获到
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype,
-        "value"
-      )?.set;
-      nativeInputValueSetter?.call(inputRef.current, selectedText);
-      inputRef.current.dispatchEvent(new Event("input", { bubbles: true }));
+    if (selectedText && !input) {
+      setInput(selectedText);
     }
   }, [selectedText]);
 
-  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
-    handleSubmit(e);
+  const handleSend = () => {
+    const text = input.trim();
+    if (!text || isLoading) return;
+    setInput("");
+    sendMessage({ text });
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
   };
 
   return (
@@ -76,7 +78,9 @@ export default function ChatPanel() {
             <p className="text-sm">在下方输入问题，开始与 AI 对话</p>
           </div>
         ) : (
-          messages.map((msg) => (
+          messages.map((msg) => {
+              const content = getMessageText(msg);
+              return (
             <div
               key={msg.id}
               className={`flex ${
@@ -91,17 +95,18 @@ export default function ChatPanel() {
                 }`}
               >
                 {msg.role === "user" ? (
-                  msg.content
-                ) : msg.content ? (
+                  content
+                ) : content ? (
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {msg.content}
+                    {content}
                   </ReactMarkdown>
                 ) : (
                   <span className="text-muted-foreground">...</span>
                 )}
               </div>
             </div>
-          ))
+              );
+            })
         )}
         {/* 错误提示 */}
         {error && (
@@ -115,21 +120,19 @@ export default function ChatPanel() {
       </div>
 
       {/* 底部输入区 */}
-      <form
-        onSubmit={onSubmit}
-        className="flex items-center gap-2 border-t border-border px-3 py-2"
-      >
+      <div className="flex items-center gap-2 border-t border-border px-3 py-2">
         <input
           ref={inputRef}
           type="text"
           value={input}
-          onChange={handleInputChange}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder="输入问题..."
           disabled={isLoading}
           className="h-9 flex-1 rounded-md border border-border bg-muted/50 px-3 text-sm outline-none focus:border-primary/50"
         />
         <button
-          type="submit"
+          onClick={handleSend}
           disabled={isLoading || !input.trim()}
           className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground disabled:opacity-50"
         >
@@ -139,7 +142,7 @@ export default function ChatPanel() {
             <Send className="h-4 w-4" />
           )}
         </button>
-      </form>
+      </div>
     </aside>
   );
 }

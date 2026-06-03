@@ -1,4 +1,4 @@
-import { streamText } from "ai";
+import { streamText, convertToModelMessages } from "ai";
 import { createDeepSeek } from "@ai-sdk/deepseek";
 
 const deepseek = createDeepSeek({
@@ -26,10 +26,13 @@ export async function POST(req: Request) {
 
   const modelName = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
 
+  // useChat 前端发来的是 UIMessage[]（含 parts 数组），需转为 streamText 可接受的 ModelMessage[]
+  const modelMessages = convertToModelMessages(messages);
+
   const result = streamText({
     model: deepseek.chat(modelName),
     system: systemPrompt,
-    messages,
+    messages: modelMessages,
   });
 
   return result.toUIMessageStreamResponse();

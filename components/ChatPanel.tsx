@@ -57,9 +57,23 @@ export default function ChatPanel() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Ctrl+Enter 或 Shift+Enter：换行
-    if (e.key === "Enter" && (e.ctrlKey || e.shiftKey)) {
-      return; // 不阻止默认行为，允许换行
+    // Ctrl+Enter：手动插入换行符
+    if (e.key === "Enter" && e.ctrlKey) {
+      e.preventDefault();
+      const textarea = e.currentTarget;
+      const { selectionStart, selectionEnd } = textarea;
+      const newValue =
+        input.slice(0, selectionStart) + "\n" + input.slice(selectionEnd);
+      setInput(newValue);
+      // 将光标放到换行符之后
+      requestAnimationFrame(() => {
+        textarea.selectionStart = textarea.selectionEnd = selectionStart + 1;
+      });
+      return;
+    }
+    // Shift+Enter：浏览器默认换行，不做处理
+    if (e.key === "Enter" && e.shiftKey) {
+      return;
     }
     // 单独 Enter：发送
     if (e.key === "Enter") {

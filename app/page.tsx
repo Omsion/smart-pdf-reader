@@ -1,6 +1,7 @@
 import TopNavbar from "@/components/TopNavbar";
 import PdfViewerWrapper from "@/components/PdfViewerWrapper";
 import ChatPanel from "@/components/ChatPanel";
+import FloatingToolbar from "@/components/FloatingToolbar";
 
 export default function Home() {
   return (
@@ -10,6 +11,7 @@ export default function Home() {
         <PdfViewerWrapper />
         <ChatPanel />
       </div>
+      <FloatingToolbar />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { FileUp, RotateCw, ZoomIn, ZoomOut, Highlighter } from "lucide-react";
+import { FileUp, RotateCw, ZoomIn, ZoomOut, Highlighter, Upload } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 
 export default function TopNavbar() {
@@ -17,7 +17,7 @@ export default function TopNavbar() {
   };
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4">
+    <header className="relative flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-4">
       {/* 左侧：Logo & 工具栏 */}
       <div className="flex items-center gap-4">
         <h1 className="text-lg font-semibold tracking-tight">Smart PDF Reader</h1>
@@ -39,6 +39,16 @@ export default function TopNavbar() {
         )}
       </div>
 
+      {/* 中间：当前文件名（绝对居中） */}
+      {pdfFile && (
+        <span
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-w-[300px] truncate text-sm text-muted-foreground"
+          title={pdfFile.name}
+        >
+          {pdfFile.name}
+        </span>
+      )}
+
       {/* 右侧：上传按钮 */}
       <div className="flex items-center gap-2">
         <input
@@ -50,10 +60,10 @@ export default function TopNavbar() {
         />
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
         >
-          <FileUp className="h-3.5 w-3.5" />
-          {pdfFile ? pdfFile.name : "上传 PDF"}
+          <Upload className="h-3.5 w-3.5" />
+          Upload PDF
         </button>
       </div>
     </header>

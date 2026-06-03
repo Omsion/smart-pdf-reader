@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Languages, Lightbulb, FileText, Loader2, AlertCircle } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { useAppStore } from "@/store/useAppStore";
 
 type ActionType = "翻译" | "解释" | "总结";
@@ -145,8 +146,8 @@ export default function FloatingToolbar() {
             )}
 
             {result && !isLoading && !error && (
-              <div className="max-h-64 overflow-auto text-sm leading-relaxed text-foreground whitespace-pre-wrap">
-                {result}
+              <div className="max-h-64 overflow-auto text-sm leading-relaxed text-foreground prose prose-sm dark:prose-invert">
+                <ReactMarkdown>{result}</ReactMarkdown>
               </div>
             )}
           </div>

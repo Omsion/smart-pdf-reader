@@ -14,6 +14,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 export default function PdfViewer() {
   const pdfUrl = useAppStore((s) => s.pdfUrl);
   const currentPage = useAppStore((s) => s.currentPage);
+  const scale = useAppStore((s) => s.scale);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
   const setSelectedText = useAppStore((s) => s.setSelectedText);
   const [numPages, setNumPages] = useState(0);
@@ -56,6 +57,7 @@ export default function PdfViewer() {
             renderAnnotationLayer={true}
             className="shadow-lg"
             width={700}
+            scale={scale}
           />
         </Document>
       </div>

@@ -8,8 +8,8 @@ import { useAppStore } from "@/store/useAppStore";
 import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 
-// pdf.js worker — 使用 CDN 确保 Next.js 兼容
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// pdf.js worker — 从本地 public/ 目录加载，无需外部 CDN
+pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
 export default function PdfViewer() {
   const pdfUrl = useAppStore((s) => s.pdfUrl);

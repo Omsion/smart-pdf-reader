@@ -34,7 +34,7 @@ export default function ChatPanel() {
 
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const isLoading = status === "submitted" || status === "streaming";
 
   // 自动滚动到底部
@@ -56,8 +56,13 @@ export default function ChatPanel() {
     sendMessage({ text });
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Ctrl+Enter 或 Shift+Enter：换行
+    if (e.key === "Enter" && (e.ctrlKey || e.shiftKey)) {
+      return; // 不阻止默认行为，允许换行
+    }
+    // 单独 Enter：发送
+    if (e.key === "Enter") {
       e.preventDefault();
       handleSend();
     }
@@ -120,16 +125,17 @@ export default function ChatPanel() {
       </div>
 
       {/* 底部输入区 */}
-      <div className="flex items-center gap-2 border-t border-border px-3 py-2">
-        <input
+      <div className="flex items-end gap-2 border-t border-border px-3 py-2">
+        <textarea
           ref={inputRef}
-          type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="输入问题..."
+          placeholder="输入问题...（Enter 发送，Ctrl+Enter 换行）"
+          rows={1}
           disabled={isLoading}
-          className="h-9 flex-1 rounded-md border border-border bg-muted/50 px-3 text-sm outline-none focus:border-primary/50"
+          className="flex-1 resize-none rounded-md border border-border bg-muted/50 px-3 py-2 text-sm outline-none focus:border-primary/50"
+          style={{ maxHeight: "8rem" }}
         />
         <button
           onClick={handleSend}

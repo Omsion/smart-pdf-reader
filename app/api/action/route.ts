@@ -4,7 +4,6 @@ import { createOpenAI } from "@ai-sdk/openai";
 const deepseek = createOpenAI({
   baseURL: "https://api.deepseek.com/v1",
   apiKey: process.env.OPENAI_API_KEY || process.env.DEEPSEEK_API_KEY,
-  compatibility: "compatible",
 });
 
 const PROMPTS: Record<string, string> = {
@@ -42,7 +41,7 @@ export async function POST(req: Request) {
     const modelName = process.env.DEEPSEEK_MODEL || "deepseek-chat";
 
     const result = await generateText({
-      model: deepseek(modelName),
+      model: deepseek.chat(modelName),
       system: systemPrompt,
       prompt: text,
     });

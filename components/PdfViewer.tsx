@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { FileText, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
@@ -19,16 +19,69 @@ export default function PdfViewer() {
   const setSelectedText = useAppStore((s) => s.setSelectedText);
   const [numPages, setNumPages] = useState(0);
 
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
   const handleDocumentLoadSuccess = (data: { numPages: number }) => {
     setNumPages(data.numPages);
   };
 
   const handleMouseUp = () => {
-    // 延迟执行，确保 selection 已生效
     setTimeout(() => {
       const text = window.getSelection()?.toString().trim() ?? "";
       setSelectedText(text);
     }, 0);
+  };
+
+  // 设置每一页的 ref，用于滚动定位和当前页检测
+  const setPageRef = useCallback((pageNumber: number, el: HTMLDivElement | null) => {
+    if (el) {
+      pageRefs.current.set(pageNumber, el);
+    } else {
+      pageRefs.current.delete(pageNumber);
+    }
+  }, []);
+
+  // 监听滚动，自动更新当前页码
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || numPages === 0) return;
+
+    const handleScroll = () => {
+      const containerTop = container.scrollTop;
+      const containerHeight = container.clientHeight;
+      const midPoint = containerTop + containerHeight / 2;
+
+      let closestPage = 1;
+      let closestDistance = Infinity;
+
+      pageRefs.current.forEach((el, page) => {
+        const rect = el.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const pageCenter = rect.top + rect.height / 2 - containerRect.top + containerTop;
+        const distance = Math.abs(pageCenter - midPoint);
+
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestPage = page;
+        }
+      });
+
+      if (closestPage !== currentPage) {
+        setCurrentPage(closestPage);
+      }
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [numPages, currentPage, setCurrentPage]);
+
+  // 快捷跳转到指定页
+  const scrollToPage = (page: number) => {
+    const el = pageRefs.current.get(page);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   };
 
   if (!pdfUrl) {
@@ -44,30 +97,46 @@ export default function PdfViewer() {
 
   return (
     <div className="flex flex-1 flex-col bg-muted/30" onMouseUp={handleMouseUp}>
-      {/* PDF 渲染区 */}
-      <div className="flex flex-1 justify-center overflow-auto p-4">
+      {/* PDF 连续滚动区 */}
+      <div
+        ref={scrollContainerRef}
+        className="flex flex-1 flex-col items-center overflow-y-auto p-4"
+      >
         <Document
           file={pdfUrl}
           onLoadSuccess={handleDocumentLoadSuccess}
           className="flex flex-col items-center"
+          loading={
+            <div className="flex items-center justify-center py-20">
+              <p className="text-sm text-muted-foreground">加载 PDF...</p>
+            </div>
+          }
         >
-          <Page
-            pageNumber={currentPage}
-            renderTextLayer={true}
-            renderAnnotationLayer={true}
-            className="shadow-lg"
-            width={700}
-            scale={scale}
-          />
+          {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNumber) => (
+            <div
+              key={pageNumber}
+              ref={(el) => setPageRef(pageNumber, el)}
+              className="mb-4"
+            >
+              <Page
+                pageNumber={pageNumber}
+                renderTextLayer={true}
+                renderAnnotationLayer={true}
+                className="shadow-lg"
+                width={700}
+                scale={scale}
+              />
+            </div>
+          ))}
         </Document>
       </div>
 
-      {/* 底部分页控制 */}
+      {/* 底部分页控制 — 快捷跳转 */}
       {numPages > 0 && (
         <div className="flex h-12 shrink-0 items-center justify-center gap-4 border-t border-border bg-card text-sm">
           <button
             disabled={currentPage <= 1}
-            onClick={() => setCurrentPage(currentPage - 1)}
+            onClick={() => scrollToPage(currentPage - 1)}
             className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -77,7 +146,7 @@ export default function PdfViewer() {
           </span>
           <button
             disabled={currentPage >= numPages}
-            onClick={() => setCurrentPage(currentPage + 1)}
+            onClick={() => scrollToPage(currentPage + 1)}
             className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30"
           >
             <ChevronRight className="h-4 w-4" />

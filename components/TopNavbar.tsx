@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { FileUp, RotateCw, ZoomIn, ZoomOut, Highlighter, Upload } from "lucide-react";
+import { RotateCw, ZoomIn, ZoomOut, Upload } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 
 export default function TopNavbar() {
@@ -9,11 +9,9 @@ export default function TopNavbar() {
   const setPdfFile = useAppStore((s) => s.setPdfFile);
   const pdfFile = useAppStore((s) => s.pdfFile);
   const scale = useAppStore((s) => s.scale);
-  const isHighlightMode = useAppStore((s) => s.isHighlightMode);
   const zoomIn = useAppStore((s) => s.zoomIn);
   const zoomOut = useAppStore((s) => s.zoomOut);
   const resetScale = useAppStore((s) => s.resetScale);
-  const toggleHighlightMode = useAppStore((s) => s.toggleHighlightMode);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
@@ -51,17 +49,6 @@ export default function TopNavbar() {
               title="缩小"
             >
               <ZoomOut className="h-4 w-4" />
-            </button>
-            <button
-              onClick={toggleHighlightMode}
-              className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
-                isHighlightMode
-                  ? "bg-primary/10 text-primary hover:bg-primary/20"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
-              }`}
-              title="高亮模式"
-            >
-              <Highlighter className="h-4 w-4" />
             </button>
           </div>
         )}

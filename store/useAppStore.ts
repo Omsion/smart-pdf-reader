@@ -7,7 +7,7 @@ interface AppState {
   selectedText: string;
   isSidebarOpen: boolean;
   scale: number;
-  isHighlightMode: boolean;
+  documentText: string;
   setPdfFile: (file: File | null) => void;
   setCurrentPage: (page: number) => void;
   setSelectedText: (text: string) => void;
@@ -15,7 +15,7 @@ interface AppState {
   zoomIn: () => void;
   zoomOut: () => void;
   resetScale: () => void;
-  toggleHighlightMode: () => void;
+  setDocumentText: (text: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -25,14 +25,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedText: "",
   isSidebarOpen: true,
   scale: 1.0,
-  isHighlightMode: false,
+  documentText: "",
   setPdfFile: (file) => {
     // 清理旧的 Object URL，防止内存泄漏
     const oldUrl = get().pdfUrl;
     if (oldUrl) URL.revokeObjectURL(oldUrl);
 
     const pdfUrl = file ? URL.createObjectURL(file) : null;
-    set({ pdfFile: file, pdfUrl, currentPage: 1 });
+    set({ pdfFile: file, pdfUrl, currentPage: 1, documentText: "" });
   },
   setCurrentPage: (page) => set({ currentPage: page }),
   setSelectedText: (text) => set({ selectedText: text }),
@@ -46,6 +46,5 @@ export const useAppStore = create<AppState>((set, get) => ({
       scale: Math.max(state.scale - 0.2, 0.5),
     })),
   resetScale: () => set({ scale: 1.0 }),
-  toggleHighlightMode: () =>
-    set((state) => ({ isHighlightMode: !state.isHighlightMode })),
+  setDocumentText: (text) => set({ documentText: text }),
 }));

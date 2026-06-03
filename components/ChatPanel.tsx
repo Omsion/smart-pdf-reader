@@ -16,6 +16,7 @@ function getMessageText(msg: UIMessage): string {
 export default function ChatPanel() {
   const selectedText = useAppStore((s) => s.selectedText);
   const currentPage = useAppStore((s) => s.currentPage);
+  const documentText = useAppStore((s) => s.documentText);
 
   const {
     messages,
@@ -26,7 +27,7 @@ export default function ChatPanel() {
     transport: new DefaultChatTransport({
       api: "/api/chat",
       body: {
-        contextMode: "full-document",
+        documentText,
         currentPage,
       },
     }),

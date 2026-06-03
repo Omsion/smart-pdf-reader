@@ -17,7 +17,9 @@ export default function PdfViewer() {
   const scale = useAppStore((s) => s.scale);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
   const setSelectedText = useAppStore((s) => s.setSelectedText);
+  const setDocumentText = useAppStore((s) => s.setDocumentText);
   const [numPages, setNumPages] = useState(0);
+  const [isExtracting, setIsExtracting] = useState(false);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -25,6 +27,55 @@ export default function PdfViewer() {
   const handleDocumentLoadSuccess = (data: { numPages: number }) => {
     setNumPages(data.numPages);
   };
+
+  // 后台静默提取 PDF 全文，存入 Zustand
+  useEffect(() => {
+    if (!pdfUrl) {
+      setDocumentText("");
+      return;
+    }
+
+    let cancelled = false;
+    setIsExtracting(true);
+
+    const extractText = async () => {
+      try {
+        const pdf = await pdfjs.getDocument(pdfUrl).promise;
+        const totalPages = pdf.numPages;
+        const pageTexts: string[] = [];
+
+        for (let i = 1; i <= totalPages; i++) {
+          if (cancelled) return;
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          // 过滤掉标记内容，只保留有 str 属性的文本条目
+          const text = (content.items as Array<{ str?: string }>)
+            .filter((item) => typeof item.str === "string")
+            .map((item) => item.str!)
+            .join(" ");
+          pageTexts.push(`[第 ${i} 页]\n${text}`);
+        }
+
+        if (!cancelled) {
+          setDocumentText(pageTexts.join("\n\n"));
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error("PDF 文本提取失败:", err);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsExtracting(false);
+        }
+      }
+    };
+
+    extractText();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pdfUrl, setDocumentText]);
 
   const handleMouseUp = () => {
     setTimeout(() => {

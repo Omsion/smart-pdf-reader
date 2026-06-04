@@ -11,7 +11,12 @@ import {
   SendHorizontal,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import { useAppStore } from "@/store/useAppStore";
+import { normalizeMathDelimiters } from "@/lib/utils";
 
 type ActionType = "翻译" | "解释" | "总结";
 
@@ -206,7 +211,9 @@ export default function FloatingToolbar() {
 
               {result && !isLoading && !error && (
                 <div className="max-h-[280px] overflow-y-auto text-sm leading-relaxed text-foreground prose prose-sm dark:prose-invert">
-                  <ReactMarkdown>{result}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                    {normalizeMathDelimiters(result)}
+                  </ReactMarkdown>
                 </div>
               )}
             </div>

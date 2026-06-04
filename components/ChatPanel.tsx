@@ -1,17 +1,53 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo, memo } from "react";
 import { MessageCircle, Send, Loader2 } from "lucide-react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, isTextUIPart, type UIMessage } from "ai";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import { useAppStore } from "@/store/useAppStore";
+import { normalizeMathDelimiters } from "@/lib/utils";
 
 /** 从 UIMessage 的 parts 数组中提取纯文本内容 */
 function getMessageText(msg: UIMessage): string {
   return msg.parts.filter(isTextUIPart).map((p) => p.text).join("");
 }
+
+/** 已完成消息的气泡 — memo 避免父组件重渲染时重复执行 */
+const CompletedMessageBubble = memo(function CompletedMessageBubble({
+  content,
+  isUser,
+}: {
+  content: string;
+  isUser: boolean;
+}) {
+  return (
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
+          isUser
+            ? "bg-primary text-primary-foreground whitespace-pre-wrap"
+            : "bg-muted text-foreground prose prose-sm dark:prose-invert max-w-none"
+        }`}
+      >
+        {isUser ? (
+          content
+        ) : (
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm, remarkMath]}
+            rehypePlugins={[rehypeKatex]}
+          >
+            {normalizeMathDelimiters(content)}
+          </ReactMarkdown>
+        )}
+      </div>
+    </div>
+  );
+});
 
 export default function ChatPanel() {
   const selectedText = useAppStore((s) => s.selectedText);
@@ -27,19 +63,20 @@ export default function ChatPanel() {
   } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
-      // 使用 getter 函数，每次请求时实时从 Zustand store 读取最新值
-      // 避免闭包捕获陈旧值（PDF 文本提取是异步的，组件首次渲染时 documentText 为空）
       body: () => ({
         documentText: useAppStore.getState().documentText,
         currentPage: useAppStore.getState().currentPage,
       }),
     }),
+    // 流式输出节流：将每 token 触发渲染降低为每 50ms 一次，大幅减少重渲染
+    experimental_throttle: 50,
   });
 
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isLoading = status === "submitted" || status === "streaming";
+  const isStreaming = status === "streaming";
 
   // 自动滚动到底部
   useEffect(() => {
@@ -110,35 +147,37 @@ export default function ChatPanel() {
             <p className="text-sm">在下方输入问题，开始与 AI 对话</p>
           </div>
         ) : (
-          messages.map((msg) => {
-              const content = getMessageText(msg);
+          messages.map((msg, idx) => {
+            const content = getMessageText(msg);
+            const isLast = idx === messages.length - 1;
+
+            // 用户消息始终用 CompletedMessageBubble（已 memo）
+            if (msg.role === "user") {
               return (
-            <div
-              key={msg.id}
-              className={`flex ${
-                msg.role === "user" ? "justify-end" : "justify-start"
-              }`}
-            >
-              <div
-                className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-                  msg.role === "user"
-                    ? "bg-primary text-primary-foreground whitespace-pre-wrap"
-                    : "bg-muted text-foreground prose prose-sm dark:prose-invert max-w-none"
-                }`}
-              >
-                {msg.role === "user" ? (
-                  content
-                ) : content ? (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {content}
-                  </ReactMarkdown>
-                ) : (
-                  <span className="text-muted-foreground">...</span>
-                )}
-              </div>
-            </div>
+                <CompletedMessageBubble key={msg.id} content={content} isUser />
               );
-            })
+            }
+
+            // 流式中的最后一条助手消息 → 纯文本渲染，避免 KaTeX 每 token 重新解析
+            if (isLast && isStreaming) {
+              return (
+                <div key={msg.id} className="flex justify-start">
+                  <div className="max-w-[85%] rounded-lg bg-muted px-3 py-2 text-sm text-foreground whitespace-pre-wrap">
+                    {content || <span className="text-muted-foreground">...</span>}
+                  </div>
+                </div>
+              );
+            }
+
+            // 已完成的助手消息 → memo + 完整 Markdown/Math 渲染
+            return (
+              <CompletedMessageBubble
+                key={msg.id}
+                content={content}
+                isUser={false}
+              />
+            );
+          })
         )}
         {/* 错误提示 */}
         {error && (

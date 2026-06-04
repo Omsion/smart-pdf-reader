@@ -94,16 +94,16 @@ export default function ChatPanel() {
   };
 
   return (
-    <aside className="flex w-2/5 shrink-0 flex-col border-l border-border bg-card">
+    <aside className="flex h-full w-full flex-col border-l border-border bg-card">
       {/* 标题区 */}
       <div className="border-b border-border px-4 py-3">
         <p className="text-xs font-medium text-muted-foreground">AI 问答</p>
       </div>
 
       {/* 对话列表区 */}
-      <div className="flex flex-1 flex-col gap-3 overflow-auto p-4">
+      <div className="flex flex-col flex-1 w-full overflow-y-auto p-4">
         {messages.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
             <MessageCircle className="h-10 w-10" />
             <p className="text-sm">在下方输入问题，开始与 AI 对话</p>
           </div>
@@ -150,7 +150,8 @@ export default function ChatPanel() {
       </div>
 
       {/* 底部输入区 */}
-      <div className="flex items-end gap-2 border-t border-border px-3 py-2">
+      <div className="mt-auto w-full border-t border-border bg-background p-4">
+        <div className="flex items-end gap-2 w-full">
         <textarea
           ref={inputRef}
           value={input}
@@ -173,6 +174,7 @@ export default function ChatPanel() {
             <Send className="h-4 w-4" />
           )}
         </button>
+        </div>
       </div>
     </aside>
   );

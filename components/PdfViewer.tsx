@@ -147,7 +147,7 @@ export default function PdfViewer() {
   }
 
   return (
-    <div className="flex flex-1 flex-col bg-muted/30" onMouseUp={handleMouseUp}>
+    <div className="flex h-full w-full flex-col bg-muted/30" onMouseUp={handleMouseUp}>
       {/* PDF 连续滚动区 */}
       <div
         ref={scrollContainerRef}

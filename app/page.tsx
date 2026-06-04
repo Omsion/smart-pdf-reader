@@ -12,12 +12,25 @@ export default function Home() {
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden">
       <TopNavbar />
-      <ResizablePanelGroup orientation="horizontal" className="flex-1">
-        <ResizablePanel defaultSize={60} minSize={30} maxSize={80}>
+      <ResizablePanelGroup
+        orientation="horizontal"
+        className="h-[calc(100vh-56px)] w-full"
+      >
+        <ResizablePanel
+          defaultSize={60}
+          minSize={30}
+          maxSize={80}
+          className="h-full"
+        >
           <PdfViewerWrapper />
         </ResizablePanel>
         <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={40} minSize={20} maxSize={70}>
+        <ResizablePanel
+          defaultSize={40}
+          minSize={20}
+          maxSize={70}
+          className="h-full"
+        >
           <ChatPanel />
         </ResizablePanel>
       </ResizablePanelGroup>

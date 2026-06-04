@@ -39,7 +39,7 @@ const CompletedMessageBubble = memo(function CompletedMessageBubble({
         ) : (
           <ReactMarkdown
             remarkPlugins={[remarkGfm, remarkMath]}
-            rehypePlugins={[rehypeKatex]}
+            rehypePlugins={[[rehypeKatex, { strict: false }]]}
           >
             {normalizeMathDelimiters(content)}
           </ReactMarkdown>

@@ -6,10 +6,13 @@ const deepseek = createDeepSeek({
   baseURL: process.env.DEEPSEEK_BASE_URL,
 });
 
+const MATH_FORMAT_NOTE =
+  "注意：回答中涉及数学公式时，行内公式必须使用 $...$ 包围，块级公式必须使用 $$...$$ 包围。（严禁使用 \\( \\) 或 \\[ \\] 或直接裸写 LaTeX 命令）";
+
 const PROMPTS: Record<string, string> = {
-  translate: "请将以下内容翻译为流畅的中文。只返回翻译结果，不要添加任何解释或额外内容。",
-  explain: "请用通俗易懂的语言解释以下内容的含义。如果涉及专业术语，请一并说明。",
-  summarize: "请用简洁的语言总结以下内容的核心要点，分条列出关键信息。",
+  translate: `请将以下内容翻译为流畅的中文。只返回翻译结果，不要添加任何解释或额外内容。${MATH_FORMAT_NOTE}`,
+  explain: `请用通俗易懂的语言解释以下内容的含义。如果涉及专业术语，请一并说明。${MATH_FORMAT_NOTE}`,
+  summarize: `请用简洁的语言总结以下内容的核心要点，分条列出关键信息。${MATH_FORMAT_NOTE}`,
 };
 
 export async function POST(req: Request) {

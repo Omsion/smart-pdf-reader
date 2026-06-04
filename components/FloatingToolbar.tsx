@@ -211,7 +211,7 @@ export default function FloatingToolbar() {
 
               {result && !isLoading && !error && (
                 <div className="max-h-[280px] overflow-y-auto text-sm leading-relaxed text-foreground prose prose-sm dark:prose-invert">
-                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[[rehypeKatex, { strict: false }]]}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[[rehypeKatex, { strict: false, throwOnError: false }]]}>
                     {normalizeMathDelimiters(result)}
                   </ReactMarkdown>
                 </div>

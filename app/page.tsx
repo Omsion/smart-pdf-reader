@@ -14,7 +14,7 @@ export default function Home() {
       <TopNavbar />
       <ResizablePanelGroup
         orientation="horizontal"
-        className="h-[calc(100vh-56px)] w-full"
+        className="w-full"
         resizeTargetMinimumSize={{ coarse: 37, fine: 8 }}
       >
         <ResizablePanel

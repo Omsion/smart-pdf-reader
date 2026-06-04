@@ -5,8 +5,8 @@
 ## 功能
 
 - **PDF 渲染** — 基于 `react-pdf`（pdf.js），支持分页、缩放、文本选择
-- **划词 AI** — 选中文字后弹出悬浮菜单，一键翻译 / 解释 / 总结，结果支持 Markdown 渲染
-- **AI 对话** — 右侧边栏实时对话，流式输出 + Markdown 渲染，选中文本自动填入输入框
+- **划词 AI** — 选中文字后弹出悬浮菜单，一键翻译 / 解释 / 总结，结果支持 Markdown + LaTeX 数学公式渲染
+- **AI 对话** — 右侧边栏实时对话，流式输出 + Markdown 渲染 + LaTeX 公式渲染（KaTeX），选中文本自动填入输入框
 - **上下文感知** — 自动注入当前页码或全文上下文到 AI 对话中
 
 ## 技术栈
@@ -18,7 +18,7 @@
 | 状态管理 | Zustand 5 |
 | PDF 渲染 | react-pdf (pdf.js)，worker 本地加载 |
 | AI SDK | Vercel AI SDK v6 — `@ai-sdk/deepseek` + `@ai-sdk/react` |
-| Markdown | react-markdown + remark-gfm |
+| Markdown | react-markdown + remark-gfm + remark-math + rehype-katex |
 
 ## 快速开始
 

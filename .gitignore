@@ -24,9 +24,8 @@
 .DS_Store
 *.pem
 
-# AI coding tools (not part of the project)
+# AI coding tools (personal settings, not part of the project)
 AGENTS.md
-CLAUDE.md
 .claude/
 
 # temp docs

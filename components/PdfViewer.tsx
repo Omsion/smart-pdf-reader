@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
-import { FileText, ChevronLeft, ChevronRight } from "lucide-react";
+import { FileText, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 
 import "react-pdf/dist/Page/TextLayer.css";
@@ -11,6 +11,9 @@ import "react-pdf/dist/Page/AnnotationLayer.css";
 // pdf.js worker — 从本地 public/ 目录加载，无需外部 CDN
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
+// 占位页的预估高度（US Letter @ 700px 宽度 ≈ 906px，加 margin 余量）
+const ESTIMATED_PAGE_HEIGHT = 920;
+
 export default function PdfViewer() {
   const pdfUrl = useAppStore((s) => s.pdfUrl);
   const currentPage = useAppStore((s) => s.currentPage);
@@ -18,17 +21,52 @@ export default function PdfViewer() {
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
   const setSelectedText = useAppStore((s) => s.setSelectedText);
   const setDocumentText = useAppStore((s) => s.setDocumentText);
+
   const [numPages, setNumPages] = useState(0);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [extractProgress, setExtractProgress] = useState({ current: 0, total: 0 });
+
+  // 渐进式渲染：初始只渲染前几页，其余用占位符，分批加载
+  const BATCH_SIZE = 3;
+  const [loadedPages, setLoadedPages] = useState(BATCH_SIZE);
+  const [pageHeight, setPageHeight] = useState(ESTIMATED_PAGE_HEIGHT);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
+  // 切换 PDF 时重置渐进渲染
+  useEffect(() => {
+    setLoadedPages(BATCH_SIZE);
+    setPageHeight(ESTIMATED_PAGE_HEIGHT);
+  }, [pdfUrl]);
 
   const handleDocumentLoadSuccess = (data: { numPages: number }) => {
     setNumPages(data.numPages);
   };
 
-  // 后台静默提取 PDF 全文，存入 Zustand
+  // 第一页加载后，用真实尺寸更新占位符高度（避免占位和实际高度不一致）
+  const handleFirstPageLoad = useCallback((page: { getViewport: (opts: { scale: number }) => { height: number; width: number } }) => {
+    const viewport = page.getViewport({ scale: 1 });
+    if (viewport.width > 0) {
+      const realHeight = viewport.height * (700 / viewport.width);
+      if (Math.abs(realHeight - pageHeight) > 50) {
+        setPageHeight(realHeight);
+      }
+    }
+  }, [pageHeight]);
+
+  // 渐进加载更多页：每 150ms 释放一批，不阻塞 UI
+  useEffect(() => {
+    if (numPages <= loadedPages) return;
+
+    const timer = setTimeout(() => {
+      setLoadedPages((prev) => Math.min(prev + BATCH_SIZE, numPages));
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [numPages, loadedPages]);
+
+  // 后台静默提取 PDF 全文（延迟启动 + 逐页 yield）
   useEffect(() => {
     if (!pdfUrl) {
       setDocumentText("");
@@ -37,23 +75,35 @@ export default function PdfViewer() {
 
     let cancelled = false;
     setIsExtracting(true);
+    setExtractProgress({ current: 0, total: 0 });
 
     const extractText = async () => {
+      let phase2Start = 0;  // 记录阶段 2 开始时间，用于最小展示时长
       try {
+        // 延迟 2s：等渐进渲染跑完开头几页再开始，避免争抢主线程
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        if (cancelled) return;
+
         const pdf = await pdfjs.getDocument(pdfUrl).promise;
         const totalPages = pdf.numPages;
+        phase2Start = Date.now();
+        setExtractProgress({ current: 0, total: totalPages });
         const pageTexts: string[] = [];
 
         for (let i = 1; i <= totalPages; i++) {
           if (cancelled) return;
           const page = await pdf.getPage(i);
           const content = await page.getTextContent();
-          // 过滤掉标记内容，只保留有 str 属性的文本条目
           const text = (content.items as Array<{ str?: string }>)
             .filter((item) => typeof item.str === "string")
             .map((item) => item.str!)
             .join(" ");
           pageTexts.push(`[第 ${i} 页]\n${text}`);
+
+          setExtractProgress({ current: i, total: totalPages });
+
+          // 逐页释放主线程，同时给足够时间让进度条肉眼可见（30ms）
+          await new Promise((resolve) => setTimeout(resolve, 30));
         }
 
         if (!cancelled) {
@@ -65,7 +115,14 @@ export default function PdfViewer() {
         }
       } finally {
         if (!cancelled) {
+          // 确保阶段 2 至少显示 1.5 秒，避免进度条一闪而逝
+          const elapsed = Date.now() - phase2Start;
+          const minDisplay = 1500;
+          if (elapsed < minDisplay) {
+            await new Promise((r) => setTimeout(r, minDisplay - elapsed));
+          }
           setIsExtracting(false);
+          setExtractProgress({ current: 0, total: 0 });
         }
       }
     };
@@ -84,7 +141,6 @@ export default function PdfViewer() {
     }, 0);
   };
 
-  // 设置每一页的 ref，用于滚动定位和当前页检测
   const setPageRef = useCallback((pageNumber: number, el: HTMLDivElement | null) => {
     if (el) {
       pageRefs.current.set(pageNumber, el);
@@ -127,7 +183,6 @@ export default function PdfViewer() {
     return () => container.removeEventListener("scroll", handleScroll);
   }, [numPages, currentPage, setCurrentPage]);
 
-  // 快捷跳转到指定页
   const scrollToPage = (page: number) => {
     const el = pageRefs.current.get(page);
     if (el) {
@@ -147,7 +202,52 @@ export default function PdfViewer() {
   }
 
   return (
-    <div className="flex h-full w-full flex-col bg-muted/30" onMouseUp={handleMouseUp}>
+    <div className="relative flex h-full w-full flex-col bg-muted/30" onMouseUp={handleMouseUp}>
+      {/* PDF 文本提取进度遮罩 — 阶段 1：准备中（无进度） */}
+      {isExtracting && extractProgress.total === 0 && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4 rounded-xl bg-card border border-border px-8 py-6 shadow-2xl">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-sm font-medium text-foreground">
+              正在准备 PDF 解析...
+            </p>
+            <p className="text-xs text-muted-foreground">
+              请稍候
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* PDF 文本提取进度遮罩 — 阶段 2：逐页提取（有进度条） */}
+      {isExtracting && extractProgress.total > 0 && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4 rounded-xl bg-card border border-border px-8 py-6 shadow-2xl">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div className="text-center">
+              <p className="text-sm font-medium text-foreground">
+                正在解析 PDF 文本...
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                请稍候，不要进行其他操作
+              </p>
+            </div>
+            <div className="w-full space-y-1.5">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-300"
+                  style={{
+                    width: `${Math.round((extractProgress.current / extractProgress.total) * 100)}%`,
+                  }}
+                />
+              </div>
+              <p className="text-center text-xs text-muted-foreground tabular-nums">
+                {extractProgress.current} / {extractProgress.total} 页
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* PDF 连续滚动区 */}
       <div
         ref={scrollContainerRef}
@@ -159,6 +259,7 @@ export default function PdfViewer() {
           className="flex flex-col items-center"
           loading={
             <div className="flex items-center justify-center py-20">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin text-muted-foreground" />
               <p className="text-sm text-muted-foreground">加载 PDF...</p>
             </div>
           }
@@ -169,20 +270,35 @@ export default function PdfViewer() {
               ref={(el) => setPageRef(pageNumber, el)}
               className="mb-4"
             >
-              <Page
-                pageNumber={pageNumber}
-                renderTextLayer={true}
-                renderAnnotationLayer={true}
-                className="shadow-lg"
-                width={700}
-                scale={scale}
-              />
+              {pageNumber <= loadedPages ? (
+                <Page
+                  pageNumber={pageNumber}
+                  renderTextLayer={true}
+                  renderAnnotationLayer={true}
+                  className="shadow-lg"
+                  width={700}
+                  scale={scale}
+                  onLoadSuccess={
+                    pageNumber === 1 ? handleFirstPageLoad : undefined
+                  }
+                />
+              ) : (
+                /* 占位符：撑开滚动高度，等渐进加载替换为真实页面 */
+                <div
+                  style={{ width: 700, height: pageHeight }}
+                  className="flex items-center justify-center rounded-md bg-muted/20 animate-pulse"
+                >
+                  <span className="text-xs text-muted-foreground/50">
+                    {pageNumber}
+                  </span>
+                </div>
+              )}
             </div>
           ))}
         </Document>
       </div>
 
-      {/* 底部分页控制 — 快捷跳转 */}
+      {/* 底部分页控制 */}
       {numPages > 0 && (
         <div className="flex h-12 shrink-0 items-center justify-center gap-4 border-t border-border bg-card text-sm">
           <button

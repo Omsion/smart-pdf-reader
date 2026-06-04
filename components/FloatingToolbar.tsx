@@ -1,13 +1,20 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Languages, Lightbulb, FileText, Loader2, AlertCircle } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  Languages,
+  Lightbulb,
+  FileText,
+  Loader2,
+  AlertCircle,
+  X,
+  SendHorizontal,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useAppStore } from "@/store/useAppStore";
 
 type ActionType = "翻译" | "解释" | "总结";
 
-// 中文按钮名 → 后端 action key
 const ACTION_MAP: Record<ActionType, string> = {
   "翻译": "translate",
   "解释": "explain",
@@ -30,15 +37,36 @@ async function callActionApi(text: string, action: ActionType): Promise<string> 
   return data.result;
 }
 
+/** 视口边界安全定位：确保弹窗不出屏 */
+function clampPosition(
+  desiredX: number,
+  desiredY: number,
+  popupWidth: number,
+  popupHeight: number,
+) {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const margin = 12;
+
+  const x = Math.min(Math.max(desiredX - popupWidth / 2, margin), vw - popupWidth - margin);
+  const y = Math.min(desiredY + margin, vh - popupHeight - margin);
+
+  return { x: Math.max(x, margin), y: Math.max(y, margin) };
+}
+
 export default function FloatingToolbar() {
   const selectedText = useAppStore((s) => s.selectedText);
+  const setChatInputText = useAppStore((s) => s.setChatInputText);
+
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [actionType, setActionType] = useState<ActionType | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // 选中文本变化时重新计算位置，重置弹窗状态
+  const resultRef = useRef<HTMLDivElement>(null);
+
+  // 选中文本变化时重新计算位置
   useEffect(() => {
     if (!selectedText) {
       setPosition(null);
@@ -83,7 +111,26 @@ export default function FloatingToolbar() {
     [selectedText],
   );
 
+  const handleClose = () => {
+    setActionType(null);
+    setIsLoading(false);
+    setResult(null);
+    setError(null);
+  };
+
+  const handleSendToChat = () => {
+    if (!result) return;
+    const chatMsg = `**划词${actionType}**：\n\n> ${selectedText}\n\n${result}`;
+    setChatInputText(chatMsg);
+  };
+
   if (!selectedText || !position) return null;
+
+  // 弹窗尺寸常量（用于边界计算）
+  const POPUP_W = 360;
+  const POPUP_H = 420;
+
+  const resultPos = clampPosition(position.x, position.y, POPUP_W, POPUP_H);
 
   return (
     <>
@@ -92,7 +139,7 @@ export default function FloatingToolbar() {
         className="pointer-events-auto fixed z-50 -translate-x-1/2 -translate-y-full"
         style={{ left: position.x, top: position.y - 8 }}
       >
-        <div className="flex items-center gap-0.5 rounded-lg bg-zinc-800 px-1.5 py-1 shadow-lg">
+        <div className="flex items-center gap-0.5 rounded-lg bg-zinc-800/90 px-1.5 py-1 shadow-lg backdrop-blur-sm">
           <button
             onClick={() => handleAction("翻译")}
             disabled={isLoading}
@@ -120,34 +167,60 @@ export default function FloatingToolbar() {
         </div>
       </div>
 
-      {/* 结果弹窗 — 位于悬浮菜单下方 */}
+      {/* 结果弹窗 — 毛玻璃卡片，自动避开屏幕边界 */}
       {(actionType || isLoading || result || error) && (
         <div
-          className="pointer-events-auto fixed z-50 -translate-x-1/2"
-          style={{ left: position.x, top: position.y + 12 }}
+          ref={resultRef}
+          className="pointer-events-auto fixed z-50"
+          style={{ left: resultPos.x, top: resultPos.y }}
         >
-          <div className="w-80 rounded-lg border border-border bg-card p-4 shadow-xl">
-            <div className="mb-2 text-xs font-medium text-muted-foreground">
-              {actionType}
+          <div className="w-[360px] max-h-[420px] flex flex-col rounded-xl border border-border/50 bg-card/80 shadow-2xl backdrop-blur-xl">
+            {/* 顶部操作栏 */}
+            <div className="flex shrink-0 items-center justify-between border-b border-border/50 px-4 py-2">
+              <span className="text-xs font-medium text-muted-foreground">
+                {actionType}
+              </span>
+              <button
+                onClick={handleClose}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
             </div>
 
-            {isLoading && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                正在生成{actionType}结果...
-              </div>
-            )}
+            {/* 内容区 */}
+            <div className="flex-1 overflow-y-auto px-4 py-3">
+              {isLoading && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  正在生成{actionType}结果...
+                </div>
+              )}
 
-            {error && (
-              <div className="flex items-start gap-2 text-sm text-destructive">
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
+              {error && (
+                <div className="flex items-start gap-2 text-sm text-destructive">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
 
+              {result && !isLoading && !error && (
+                <div className="max-h-[280px] overflow-y-auto text-sm leading-relaxed text-foreground prose prose-sm dark:prose-invert">
+                  <ReactMarkdown>{result}</ReactMarkdown>
+                </div>
+              )}
+            </div>
+
+            {/* 底部操作栏 */}
             {result && !isLoading && !error && (
-              <div className="max-h-64 overflow-auto text-sm leading-relaxed text-foreground prose prose-sm dark:prose-invert">
-                <ReactMarkdown>{result}</ReactMarkdown>
+              <div className="flex shrink-0 items-center border-t border-border/50 px-4 py-2">
+                <button
+                  onClick={handleSendToChat}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors"
+                >
+                  <SendHorizontal className="h-3.5 w-3.5" />
+                  发送到右侧对话
+                </button>
               </div>
             )}
           </div>

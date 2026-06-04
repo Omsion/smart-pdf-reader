@@ -8,6 +8,7 @@ interface AppState {
   isSidebarOpen: boolean;
   scale: number;
   documentText: string;
+  chatInputText: string;
   setPdfFile: (file: File | null) => void;
   setCurrentPage: (page: number) => void;
   setSelectedText: (text: string) => void;
@@ -16,6 +17,7 @@ interface AppState {
   zoomOut: () => void;
   resetScale: () => void;
   setDocumentText: (text: string) => void;
+  setChatInputText: (text: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -26,6 +28,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   isSidebarOpen: true,
   scale: 1.0,
   documentText: "",
+  chatInputText: "",
   setPdfFile: (file) => {
     // 清理旧的 Object URL，防止内存泄漏
     const oldUrl = get().pdfUrl;
@@ -47,4 +50,5 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
   resetScale: () => set({ scale: 1.0 }),
   setDocumentText: (text) => set({ documentText: text }),
+  setChatInputText: (text) => set({ chatInputText: text }),
 }));

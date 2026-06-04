@@ -17,6 +17,7 @@ export default function ChatPanel() {
   const selectedText = useAppStore((s) => s.selectedText);
   const currentPage = useAppStore((s) => s.currentPage);
   const documentText = useAppStore((s) => s.documentText);
+  const chatInputText = useAppStore((s) => s.chatInputText);
 
   const {
     messages,
@@ -49,6 +50,15 @@ export default function ChatPanel() {
       setInput(selectedText);
     }
   }, [selectedText]);
+
+  // 接收来自 FloatingToolbar 的"发送到对话"联动
+  useEffect(() => {
+    if (chatInputText) {
+      setInput(chatInputText);
+      // 清除 store 中的暂存，防止重复填充
+      useAppStore.getState().setChatInputText("");
+    }
+  }, [chatInputText]);
 
   const handleSend = () => {
     const text = input.trim();

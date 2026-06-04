@@ -1,10 +1,31 @@
 import { streamText, convertToModelMessages } from "ai";
 import { createDeepSeek } from "@ai-sdk/deepseek";
+import { createOpenAI } from "@ai-sdk/openai";
 
-const deepseek = createDeepSeek({
+// 服务器端默认 DeepSeek provider（用户未提供 Key 时的降级方案）
+const serverDeepSeek = createDeepSeek({
   apiKey: process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY,
   baseURL: process.env.DEEPSEEK_BASE_URL,
 });
+
+/**
+ * 动态创建模型实例：
+ * - 如果用户提供了 API Key，则用 createOpenAI 连接任意兼容 OpenAI 格式的 API
+ * - 否则降级使用服务器的 DeepSeek 环境变量配置
+ */
+function getModel(userApiKey: string, userBaseUrl: string, selectedModel: string) {
+  if (userApiKey) {
+    const openai = createOpenAI({
+      apiKey: userApiKey,
+      baseURL: userBaseUrl || "https://api.openai.com/v1",
+    });
+    return openai.chat(selectedModel || "gpt-4o-mini");
+  }
+
+  // 降级：使用服务器环境变量
+  const modelName = selectedModel || process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
+  return serverDeepSeek.chat(modelName);
+}
 
 export async function POST(req: Request) {
   const json = await req.json();
@@ -12,6 +33,11 @@ export async function POST(req: Request) {
   const messages = json.messages;
   const documentText = json.documentText ?? json.body?.documentText;
   const currentPage = json.currentPage ?? json.body?.currentPage;
+
+  // 用户配置（可能来自 body 顶层或嵌套）
+  const userApiKey = json.userApiKey ?? json.body?.userApiKey ?? "";
+  const userBaseUrl = json.userBaseUrl ?? json.body?.userBaseUrl ?? "";
+  const selectedModel = json.selectedModel ?? json.body?.selectedModel ?? "";
 
   let systemPrompt: string;
 
@@ -46,23 +72,24 @@ export async function POST(req: Request) {
     systemPrompt = `你是一个专业的学术论文阅读助手。${MATH_FORMAT_RULES}`;
   }
 
-  if (!process.env.OPENAI_API_KEY && !process.env.DEEPSEEK_API_KEY) {
+  // 检查是否有任何可用的 API Key（用户提供或服务器配置）
+  if (!userApiKey && !process.env.OPENAI_API_KEY && !process.env.DEEPSEEK_API_KEY) {
     return Response.json(
       {
         message:
-          "未配置 API Key。请在 .env.local 中设置 OPENAI_API_KEY 或 DEEPSEEK_API_KEY。",
+          "未配置 API Key。请在设置中填入您的 API Key，或在服务器 .env.local 中设置 OPENAI_API_KEY 或 DEEPSEEK_API_KEY。",
       },
       { status: 500 },
     );
   }
 
-  const modelName = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
+  const model = getModel(userApiKey, userBaseUrl, selectedModel);
 
   // useChat 前端发来的是 UIMessage[]（含 parts 数组），需转为 streamText 可接受的 ModelMessage[]
   const modelMessages = await convertToModelMessages(messages);
 
   const result = streamText({
-    model: deepseek.chat(modelName),
+    model,
     system: systemPrompt,
     messages: modelMessages,
   });

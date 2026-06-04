@@ -54,6 +54,9 @@ export default function ChatPanel() {
   const currentPage = useAppStore((s) => s.currentPage);
   const documentText = useAppStore((s) => s.documentText);
   const chatInputText = useAppStore((s) => s.chatInputText);
+  const userApiKey = useAppStore((s) => s.userApiKey);
+  const userBaseUrl = useAppStore((s) => s.userBaseUrl);
+  const selectedModel = useAppStore((s) => s.selectedModel);
 
   const {
     messages,
@@ -66,6 +69,9 @@ export default function ChatPanel() {
       body: () => ({
         documentText: useAppStore.getState().documentText,
         currentPage: useAppStore.getState().currentPage,
+        userApiKey: useAppStore.getState().userApiKey,
+        userBaseUrl: useAppStore.getState().userBaseUrl,
+        selectedModel: useAppStore.getState().selectedModel,
       }),
     }),
     // 流式输出节流：将每 token 触发渲染降低为每 50ms 一次，大幅减少重渲染

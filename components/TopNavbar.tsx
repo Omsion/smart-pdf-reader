@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef } from "react";
-import { RotateCw, ZoomIn, ZoomOut, Upload } from "lucide-react";
+import { useRef, useState } from "react";
+import { RotateCw, ZoomIn, ZoomOut, Upload, Settings } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
+import SettingsDialog from "@/components/SettingsDialog";
 
 export default function TopNavbar() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -12,6 +13,7 @@ export default function TopNavbar() {
   const zoomIn = useAppStore((s) => s.zoomIn);
   const zoomOut = useAppStore((s) => s.zoomOut);
   const resetScale = useAppStore((s) => s.resetScale);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
@@ -64,7 +66,7 @@ export default function TopNavbar() {
         </span>
       )}
 
-      {/* 右侧：上传按钮 */}
+      {/* 右侧：上传按钮 + 设置 */}
       <div className="flex items-center gap-2">
         <input
           ref={fileInputRef}
@@ -80,7 +82,17 @@ export default function TopNavbar() {
           <Upload className="h-3.5 w-3.5" />
           Upload PDF
         </button>
+        <button
+          onClick={() => setSettingsOpen(true)}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          title="API 设置"
+        >
+          <Settings className="h-4 w-4" />
+        </button>
       </div>
+
+      {/* 设置弹窗 */}
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </header>
   );
 }

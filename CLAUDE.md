@@ -18,7 +18,8 @@ npm run lint         # ESLint (Next.js core-web-vitals + typescript)
 - **状态管理**: Zustand 5 — 全局 store 在 `store/useAppStore.ts`
 - **PDF 渲染**: `react-pdf` (pdf.js) — worker 从本地 `public/` 目录加载，禁用 SSR 动态导入 (`PdfViewerWrapper`)
 - **AI SDK**: Vercel AI SDK v6
-  - `@ai-sdk/deepseek` — DeepSeek 官方 provider，用于 `/api/chat` 和 `/api/action`
+  - `@ai-sdk/deepseek` — DeepSeek 官方 provider，服务器降级方案
+  - `@ai-sdk/openai` — OpenAI 官方 provider，用户自备 Key 时的动态连接器
   - `@ai-sdk/react` — `useChat` hook，用于 ChatPanel 前端对话交互
   - `ai` — `streamText()` / `generateText()` / `convertToModelMessages()`
 - **Markdown 渲染**: `react-markdown` + `remark-gfm` + `remark-math` + `rehype-katex`（对话结果 & 划词弹窗共用，支持 LaTeX 数学公式渲染）
@@ -38,34 +39,47 @@ components/
 ├── PdfViewerWrapper.tsx    # next/dynamic 包装，禁用 SSR（react-pdf 需要浏览器 API）
 ├── FloatingToolbar.tsx     # 划词悬浮菜单 + AI 结果弹窗（调用 /api/action，Markdown + LaTeX 渲染）
 ├── ChatPanel.tsx           # 右侧对话面板（useChat + 流式 Markdown + LaTeX 渲染）
-├── TopNavbar.tsx           # 顶部导航：Logo + PDF 上传 + 缩放控制
-└── ui/resizable.tsx         # 可调整面板组件（基于 react-resizable-panels v4）
+├── TopNavbar.tsx           # 顶部导航：Logo + PDF 上传 + 缩放控制 + 设置按钮
+├── SettingsDialog.tsx      # API 设置弹窗：Key / Base URL / 模型选择
+└── ui/
+    ├── dialog.tsx           # Radix Dialog 封装（shadcn 风格）
+    └── resizable.tsx        # 可调整面板组件（基于 react-resizable-panels v4）
 store/
-└── useAppStore.ts          # Zustand: pdfFile, pdfUrl, currentPage, selectedText, isSidebarOpen
+└── useAppStore.ts          # Zustand: 运行时状态 + 用户配置（persist→localStorage）
 lib/
 └── utils.ts                # cn() = clsx + tailwind-merge + normalizeMathDelimiters() 公式格式归一化
 public/
 └── pdf.worker.min.mjs      # pdf.js worker（本地加载，无需 CDN）
+start-reader.bat            # Windows 一键启动脚本
 ```
 
 ## 关键实现细节
 
-### AI 层：DeepSeek 官方 Provider
+### AI 层：动态 Provider + 降级机制
 
-两个 API 路由统一使用 `@ai-sdk/deepseek`：
+两个 API 路由采用"用户自备 Key 优先，服务器配置降级"的双轨策略：
 
+**用户提供 Key 时** — 使用 `@ai-sdk/openai` 的 `createOpenAI()` 动态创建 provider，兼容所有 OpenAI 格式 API（DeepSeek、Moonshot、SiliconFlow 等）：
+```ts
+import { createOpenAI } from "@ai-sdk/openai";
+const openai = createOpenAI({ apiKey: userApiKey, baseURL: userBaseUrl });
+return openai.chat(selectedModel);
+```
+
+**用户未提供 Key 时** — 降级使用服务器环境变量的 DeepSeek provider：
 ```ts
 import { createDeepSeek } from "@ai-sdk/deepseek";
-
 const deepseek = createDeepSeek({
   apiKey: process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL: process.env.DEEPSEEK_BASE_URL,        // 可选，第三方代理
+  baseURL: process.env.DEEPSEEK_BASE_URL,
 });
 ```
 
 环境变量：`DEEPSEEK_API_KEY`（必填）、`DEEPSEEK_MODEL`（默认 `deepseek-v4-flash`）、`DEEPSEEK_BASE_URL`（可选代理地址）。
 
-`/api/chat` 使用 `streamText()` + `convertToModelMessages()` → `toUIMessageStreamResponse()`，接收 `messages` 数组 + `contextMode` + `currentPage`，根据上下文模式注入不同的 system prompt。
+前端通过请求体将用户配置传给后端：`{ userApiKey, userBaseUrl, selectedModel }`。
+
+`/api/chat` 使用 `streamText()` + `convertToModelMessages()` → `toUIMessageStreamResponse()`。
 
 `/api/action` 使用 `generateText()` 返回纯文本 JSON，内置三种提示词模板（`translate` / `explain` / `summarize`）。
 
@@ -115,3 +129,13 @@ AI 输出中的数学公式通过三层机制保证兼容性：
 ### Zustand Store 设计
 
 `setPdfFile` 会自动管理 Blob URL 生命周期 — 新文件上传时通过 `URL.revokeObjectURL()` 清理旧的 Object URL，避免内存泄漏。`selectedText` 为空字符串时，FloatingToolbar 组件返回 `null` 不渲染任何 DOM。
+
+用户配置（`userApiKey`、`userBaseUrl`、`selectedModel`）通过 Zustand `persist` 中间件自动同步到 `localStorage`（key: `smart-pdf-reader-config`），仅序列化这三个字段（`partialize`），避免 File 对象等不可序列化的运行时状态导致异常。刷新页面后配置自动恢复。
+
+### 用户配置流程
+
+1. 顶部导航栏右侧齿轮图标 → 打开 `SettingsDialog`
+2. 用户填入 API Key（`type=password` 掩码）、Base URL（支持 datalist 推荐）、模型名称（支持 datalist 推荐 + 自由输入）
+3. 点击"保存"→ 写入 Zustand store → 自动持久化到 localStorage
+4. ChatPanel 的 `useChat` body 函数和 FloatingToolbar 的 fetch 请求自动携带最新配置
+5. 后端根据是否提供了 `userApiKey` 决定使用动态 OpenAI provider 还是服务器 DeepSeek 降级

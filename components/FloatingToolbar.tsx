@@ -26,11 +26,23 @@ const ACTION_MAP: Record<ActionType, string> = {
   "总结": "summarize",
 };
 
-async function callActionApi(text: string, action: ActionType): Promise<string> {
+async function callActionApi(
+  text: string,
+  action: ActionType,
+  userApiKey: string,
+  userBaseUrl: string,
+  selectedModel: string,
+): Promise<string> {
   const res = await fetch("/api/action", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text, action: ACTION_MAP[action] }),
+    body: JSON.stringify({
+      text,
+      action: ACTION_MAP[action],
+      userApiKey,
+      userBaseUrl,
+      selectedModel,
+    }),
   });
 
   if (!res.ok) {
@@ -62,6 +74,9 @@ function clampPosition(
 export default function FloatingToolbar() {
   const selectedText = useAppStore((s) => s.selectedText);
   const setChatInputText = useAppStore((s) => s.setChatInputText);
+  const userApiKey = useAppStore((s) => s.userApiKey);
+  const userBaseUrl = useAppStore((s) => s.userBaseUrl);
+  const selectedModel = useAppStore((s) => s.selectedModel);
 
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [actionType, setActionType] = useState<ActionType | null>(null);
@@ -105,7 +120,13 @@ export default function FloatingToolbar() {
       setError(null);
 
       try {
-        const text = await callActionApi(selectedText, action);
+        const text = await callActionApi(
+          selectedText,
+          action,
+          userApiKey,
+          userBaseUrl,
+          selectedModel,
+        );
         setResult(text);
       } catch (err) {
         setError(err instanceof Error ? err.message : "请求失败，请重试");

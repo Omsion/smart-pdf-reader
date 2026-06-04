@@ -1,10 +1,31 @@
 import { generateText } from "ai";
 import { createDeepSeek } from "@ai-sdk/deepseek";
+import { createOpenAI } from "@ai-sdk/openai";
 
-const deepseek = createDeepSeek({
+// 服务器端默认 DeepSeek provider（用户未提供 Key 时的降级方案）
+const serverDeepSeek = createDeepSeek({
   apiKey: process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY,
   baseURL: process.env.DEEPSEEK_BASE_URL,
 });
+
+/**
+ * 动态创建模型实例：
+ * - 如果用户提供了 API Key，则用 createOpenAI 连接任意兼容 OpenAI 格式的 API
+ * - 否则降级使用服务器的 DeepSeek 环境变量配置
+ */
+function getModel(userApiKey: string, userBaseUrl: string, selectedModel: string) {
+  if (userApiKey) {
+    const openai = createOpenAI({
+      apiKey: userApiKey,
+      baseURL: userBaseUrl || "https://api.openai.com/v1",
+    });
+    return openai.chat(selectedModel || "gpt-4o-mini");
+  }
+
+  // 降级：使用服务器环境变量
+  const modelName = selectedModel || process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
+  return serverDeepSeek.chat(modelName);
+}
 
 const MATH_FORMAT_NOTE =
   "注意：回答中涉及数学公式时，行内公式必须使用 $...$ 包围，块级公式必须使用 $$...$$ 包围。（严禁使用 \\( \\) 或 \\[ \\] 或直接裸写 LaTeX 命令）";
@@ -16,10 +37,14 @@ const PROMPTS: Record<string, string> = {
 };
 
 export async function POST(req: Request) {
-  const { text, action } = (await req.json()) as {
-    text: string;
-    action: string;
-  };
+  const { text, action, userApiKey, userBaseUrl, selectedModel } =
+    (await req.json()) as {
+      text: string;
+      action: string;
+      userApiKey?: string;
+      userBaseUrl?: string;
+      selectedModel?: string;
+    };
 
   if (!text?.trim()) {
     return Response.json({ error: "文本内容不能为空" }, { status: 400 });
@@ -33,18 +58,23 @@ export async function POST(req: Request) {
     );
   }
 
-  if (!process.env.OPENAI_API_KEY && !process.env.DEEPSEEK_API_KEY) {
+  // 检查是否有任何可用的 API Key
+  if (!userApiKey && !process.env.OPENAI_API_KEY && !process.env.DEEPSEEK_API_KEY) {
     return Response.json(
-      { error: "未配置 API Key" },
+      { error: "未配置 API Key。请在设置中填入您的 API Key，或在服务器 .env.local 中配置。" },
       { status: 500 },
     );
   }
 
   try {
-    const modelName = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
+    const model = getModel(
+      userApiKey ?? "",
+      userBaseUrl ?? "",
+      selectedModel ?? "",
+    );
 
     const result = await generateText({
-      model: deepseek.chat(modelName),
+      model,
       system: systemPrompt,
       prompt: text,
     });

@@ -7,7 +7,11 @@ const deepseek = createDeepSeek({
 });
 
 export async function POST(req: Request) {
-  const { messages, documentText, currentPage } = await req.json();
+  const json = await req.json();
+  // AI SDK v6 的 DefaultChatTransport 将 body 嵌套发送
+  const messages = json.messages;
+  const documentText = json.documentText ?? json.body?.documentText;
+  const currentPage = json.currentPage ?? json.body?.currentPage;
 
   let systemPrompt: string;
 

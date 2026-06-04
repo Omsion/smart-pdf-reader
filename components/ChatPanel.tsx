@@ -27,10 +27,12 @@ export default function ChatPanel() {
   } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
-      body: {
-        documentText,
-        currentPage,
-      },
+      // 使用 getter 函数，每次请求时实时从 Zustand store 读取最新值
+      // 避免闭包捕获陈旧值（PDF 文本提取是异步的，组件首次渲染时 documentText 为空）
+      body: () => ({
+        documentText: useAppStore.getState().documentText,
+        currentPage: useAppStore.getState().currentPage,
+      }),
     }),
   });
 

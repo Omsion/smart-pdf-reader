@@ -15,6 +15,7 @@ export default function Home() {
       <ResizablePanelGroup
         orientation="horizontal"
         className="h-[calc(100vh-56px)] w-full"
+        resizeTargetMinimumSize={{ coarse: 37, fine: 8 }}
       >
         <ResizablePanel
           defaultSize={60}
